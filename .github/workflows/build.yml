@@ -64,6 +64,30 @@ jobs:
               im.save(f"{folder}/ic_launcher_round.png")
               im.save(f"{folder}/ic_launcher_foreground.png")
           shutil.rmtree(f"{res}/mipmap-anydpi-v26", ignore_errors=True)
+
+          # ---- Splash screen (loading page) ----
+          import re, json
+          canvas = Image.new("RGBA", (960, 960), (0, 0, 0, 0))
+          orange = src.resize((540, 540), Image.LANCZOS)
+          canvas.paste(orange, (210, 210), orange)
+          os.makedirs(f"{res}/drawable-nodpi", exist_ok=True)
+          canvas.save(f"{res}/drawable-nodpi/splash_icon.png")
+
+          styles_path = f"{res}/values/styles.xml"
+          styles = open(styles_path, encoding="utf-8").read()
+          launch = """<style name="AppTheme.NoActionBarLaunch" parent="Theme.SplashScreen">
+              <item name="windowSplashScreenBackground">#FFF8EF</item>
+              <item name="windowSplashScreenAnimatedIcon">@drawable/splash_icon</item>
+              <item name="postSplashScreenTheme">@style/AppTheme.NoActionBar</item>
+          </style>"""
+          styles, n = re.subn(r'<style name="AppTheme.NoActionBarLaunch".*?</style>', launch, styles, flags=re.S)
+          if n != 1:
+              raise SystemExit("NoActionBarLaunch style not found")
+          open(styles_path, "w", encoding="utf-8").write(styles)
+
+          cfg = json.load(open("capacitor.config.json"))
+          cfg["backgroundColor"] = "#fff8ef"
+          json.dump(cfg, open("capacitor.config.json", "w"), indent=2)
           PY
 
           npx cap sync android
