@@ -46,8 +46,26 @@ jobs:
           fi
           ls -la www/libs
 
-          npx cap init Mandarine com.marouane.mandarine --web-dir www
+          npx cap init Mandarina com.marouane.mandarine --web-dir www
           npx cap add android
+
+          pip install pillow
+          python3 - <<'PY'
+          from PIL import Image
+          import os, shutil
+          src = Image.open("icon.png").convert("RGBA")
+          res = "android/app/src/main/res"
+          sizes = {"mdpi": 48, "hdpi": 72, "xhdpi": 96, "xxhdpi": 144, "xxxhdpi": 192}
+          for d, n in sizes.items():
+              folder = f"{res}/mipmap-{d}"
+              os.makedirs(folder, exist_ok=True)
+              im = src.resize((n, n), Image.LANCZOS)
+              im.save(f"{folder}/ic_launcher.png")
+              im.save(f"{folder}/ic_launcher_round.png")
+              im.save(f"{folder}/ic_launcher_foreground.png")
+          shutil.rmtree(f"{res}/mipmap-anydpi-v26", ignore_errors=True)
+          PY
+
           npx cap sync android
 
       - name: Build APK
@@ -57,16 +75,16 @@ jobs:
           ./gradlew assembleDebug
 
       - name: Rename APK
-        run: cp android/app/build/outputs/apk/debug/app-debug.apk Mandarine.apk
+        run: cp android/app/build/outputs/apk/debug/app-debug.apk Mandarina.apk
 
       - uses: actions/upload-artifact@v4
         with:
-          name: Mandarine-apk
-          path: Mandarine.apk
+          name: Mandarina-apk
+          path: Mandarina.apk
 
       - name: Publish release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ github.run_number }}
-          name: Mandarine v${{ github.run_number }}
-          files: Mandarine.apk
+          name: Mandarina v${{ github.run_number }}
+          files: Mandarina.apk
