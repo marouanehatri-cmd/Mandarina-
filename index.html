@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#f07a00">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<title>Mandarina – convertir et réduire vos images</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<style>
+:root{
+  --bg:#fff8ef;--surface:#ffffff;--ink:#23190f;--muted:#6f6254;--line:#ecd9c2;
+  --accent:#f07a00;--accent-ink:#ffffff;--ok:#1f7a45;--err:#b3261e;
+  box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#1a130c;--surface:#261c13;--ink:#fbefe0;--muted:#b8a791;--line:#3d2f20;
+  --accent:#ff9a2e;--accent-ink:#1a130c;--ok:#59c98a;--err:#ff8a80;color-scheme:dark;}}
+:root[data-theme="dark"]{
+  --bg:#1a130c;--surface:#261c13;--ink:#fbefe0;--muted:#b8a791;--line:#3d2f20;
+  --accent:#ff9a2e;--accent-ink:#1a130c;--ok:#59c98a;--err:#ff8a80;color-scheme:dark;}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*,*::before,*::after{box-sizing:inherit}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+main{max-width:560px;margin:0 auto;padding:20px 16px 40px}
+h1{font-size:28px;line-height:1.15;margin:8px 0 4px;letter-spacing:-.02em}
+.sub{color:var(--muted);margin:0 0 20px}
+.drop{display:block;border:2px dashed var(--accent);border-radius:18px;padding:28px 16px;text-align:center;background:var(--surface);cursor:pointer}
+.drop strong{display:block;font-size:18px}
+.drop span{color:var(--muted);font-size:14px}
+.drop:focus-within{outline:3px solid var(--accent);outline-offset:2px}
+input[type=file]{position:absolute;opacity:0;width:1px;height:1px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:14px;margin-top:16px}
+.row{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.fmts{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:8px}
+.fmts button{padding:10px 0;border:1.5px solid var(--line);background:var(--bg);color:var(--ink);border-radius:10px;font:inherit;font-weight:600;cursor:pointer}
+.fmts button[aria-pressed=true]{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+label{font-weight:600;font-size:15px}
+input[type=range]{width:100%;accent-color:var(--accent);margin:6px 0 0}
+select{font:inherit;padding:8px;border-radius:10px;border:1.5px solid var(--line);background:var(--bg);color:var(--ink)}
+.hint{color:var(--muted);font-size:13px;margin:4px 0 0}
+.pdfbtn{display:block;margin-top:10px;padding:13px;text-align:center;cursor:pointer;position:relative}
+.pdfbtn:focus-within{outline:3px solid var(--ink);outline-offset:2px}
+.go{width:100%;margin-top:16px;padding:15px;border:0;border-radius:14px;background:var(--accent);color:var(--accent-ink);font:inherit;font-size:17px;font-weight:700;cursor:pointer}
+.go:disabled{opacity:.45;cursor:not-allowed}
+button:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
+ul{list-style:none;margin:0;padding:0}
+li{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 0;border-top:1px solid var(--line)}
+li:first-child{border-top:0}
+.nm{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600}
+.sz{color:var(--muted);font-size:13px}
+.save{flex:none;padding:8px 12px;border:1.5px solid var(--accent);background:transparent;color:var(--ink);border-radius:10px;font:inherit;font-weight:600;cursor:pointer}
+.good{color:var(--ok)}.bad{color:var(--err)}
+#msg{white-space:pre-line;min-height:1.4em;margin:10px 0 0;font-size:14px}
+.rm{flex:none;border:0;background:transparent;color:var(--muted);font-size:20px;cursor:pointer;padding:4px 8px}
+
+#splash{position:fixed;inset:0;z-index:9999;background:#000;display:flex;align-items:center;justify-content:center;transition:opacity .45s ease,visibility .45s;padding:env(safe-area-inset-top,0px) env(safe-area-inset-right,0px) env(safe-area-inset-bottom,0px) env(safe-area-inset-left,0px)}
+#splash.off{opacity:0;visibility:hidden}
+#splash svg{width:min(46vw,220px);height:auto;display:block;shape-rendering:geometricPrecision;animation:splashPulse 1.8s ease-in-out infinite}
+@keyframes splashPulse{0%,100%{transform:scale(1)}50%{transform:scale(1.05)}}
+@media (prefers-reduced-motion:reduce){#splash svg{animation:none}#splash{transition:none}}
+</style>
+</head>
+<body>
+<div id="splash" role="status" aria-label="Chargement">
+  <svg viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false">
+    <circle cx="255.5" cy="287.5" r="207.5" fill="#f07a00"/>
+    <ellipse cx="171" cy="178" rx="64" ry="50.5" fill="#ffa73d"/>
+    <path fill="#308a4f" stroke="#308a4f" stroke-width="1.5" stroke-linejoin="round" d="M399 37 296 76 272 89 264 87 266 72 262 67 250 66 246 73 249 87V111L258 114 264 106 274 105 314 140 361 91Z"/>
+  </svg>
+</div>
+<main>
+  <h1>Mandarina</h1>
+  <p class="sub">Changez le format d’une image et réduisez son poids. Tout se passe sur votre téléphone, rien n’est envoyé.</p>
+
+  <label class="drop">
+    <input id="pick" type="file" accept="image/*,.jpg,.jpeg,.jfif,.png,.webp,.gif,.bmp,.avif,.heic,.heif,.tif,.tiff,.svg,.ico,.jxl,.dng,.cr2,.cr3,.nef,.arw,.orf,.rw2,.raf,.pef,.srw" multiple>
+    <strong>Choisir des images</strong>
+    <span>WhatsApp, photos, captures : JPG, PNG, WebP, HEIC, AVIF, GIF, BMP, TIFF, RAW…</span>
+  </label>
+
+  <div class="card" id="files" hidden><ul id="flist"></ul></div>
+
+  <div class="card">
+    <label id="fl">Format de sortie</label>
+    <div class="fmts" role="group" aria-labelledby="fl" id="fmts">
+      <button type="button" data-f="jpg" aria-pressed="true">JPG</button>
+      <button type="button" data-f="png" aria-pressed="false">PNG</button>
+      <button type="button" data-f="webp" aria-pressed="false">WebP</button>
+      <button type="button" data-f="pdf" aria-pressed="false">PDF</button>
+    </div>
+    <p class="hint" id="fh">PDF : toutes les images sont réunies dans un seul fichier.</p>
+  </div>
+
+  <div class="card">
+    <div class="row"><label for="q">Qualité</label><span id="qv">70 %</span></div>
+    <input id="q" type="range" min="10" max="100" value="70">
+    <p class="hint" id="qh">Plus la qualité est basse, plus le fichier est léger.</p>
+    <div class="row" style="margin-top:14px">
+      <label for="w">Largeur maximale</label>
+      <select id="w">
+        <option value="0">Originale</option>
+        <option value="2000">2000 px</option>
+        <option value="1600" selected>1600 px</option>
+        <option value="1200">1200 px</option>
+        <option value="800">800 px</option>
+      </select>
+    </div>
+  </div>
+
+  <button class="go" id="go" disabled>Convertir</button>
+  <p id="msg" role="status"></p>
+
+  <div class="card" id="res" hidden><ul id="rlist"></ul></div>
+
+  <div class="card">
+    <label>Réduire un PDF lourd</label>
+    <p class="hint">Utilise la qualité et la largeur choisies plus haut. Chaque page devient une image : le texte ne sera plus sélectionnable.</p>
+    <label class="save pdfbtn"><input id="pdfpick" type="file" accept="application/pdf">Choisir un PDF à réduire</label>
+  </div>
+</main>
+
+<script>
+(function(){
+  var files=[], fmt="jpg", results=[];
+  var $=function(i){return document.getElementById(i)};
+  var MIME={jpg:"image/jpeg",png:"image/png",webp:"image/webp"};
+
+  function size(n){return n>=1048576?(n/1048576).toFixed(2).replace(".",",")+" Mo":Math.max(1,Math.round(n/1024))+" Ko"}
+  function say(t,c){var m=$("msg");m.textContent=t;m.className=c||""}
+
+  function renderFiles(){
+    var box=$("files"),ul=$("flist");ul.textContent="";
+    box.hidden=!files.length;$("go").disabled=!files.length;
+    files.forEach(function(f,i){
+      var li=document.createElement("li"),d=document.createElement("div"),n=document.createElement("div"),s=document.createElement("div"),b=document.createElement("button");
+      d.style.minWidth="0";n.className="nm";n.textContent=f.name;s.className="sz";s.textContent=size(f.size);
+      b.className="rm";b.type="button";b.textContent="×";b.setAttribute("aria-label","Retirer "+f.name);
+      b.onclick=function(){files.splice(i,1);renderFiles()};
+      d.appendChild(n);d.appendChild(s);li.appendChild(d);li.appendChild(b);ul.appendChild(li);
+    });
+  }
+
+  $("pick").addEventListener("change",function(e){
+    var skipped=0;
+    Array.prototype.forEach.call(e.target.files,function(f){
+      if(/^(video|audio)\//.test(f.type)||f.type==="application/pdf"){skipped++;return}
+      files.push(f);
+    });
+    e.target.value="";results=[];$("res").hidden=true;
+    say(skipped?skipped+" fichier(s) ignoré(s) (ce n’est pas une image).":"");renderFiles();
+  });
+
+  $("fmts").addEventListener("click",function(e){
+    var b=e.target.closest("button");if(!b)return;
+    fmt=b.dataset.f;
+    Array.prototype.forEach.call($("fmts").children,function(x){x.setAttribute("aria-pressed",String(x===b))});
+    $("q").disabled=(fmt==="png");
+    $("qh").textContent=fmt==="png"?"Le PNG n’a pas de réglage de qualité. Réduisez la largeur pour alléger le fichier.":"Plus la qualité est basse, plus le fichier est léger.";
+  });
+  $("q").addEventListener("input",function(){$("qv").textContent=$("q").value+" %"});
+
+  var EXT={"image/jpeg":"jpg","image/png":"png","image/webp":"webp"};
+  var MIMES={jpeg:"image/jpeg",png:"image/png",gif:"image/gif",bmp:"image/bmp",webp:"image/webp",avif:"image/avif",heic:"image/heic",tiff:"image/tiff",ico:"image/x-icon",svg:"image/svg+xml",jxl:"image/jxl"};
+  var RAWEXT=/\.(cr2|cr3|nef|nrw|arw|srf|sr2|dng|orf|rw2|raf|pef|srw|3fr|erf|kdc|mrw|x3f|iiq|rwl)$/i;
+  var MAXPX=16000000;
+  var HEIC2ANY=["https://cdnjs.cloudflare.com/ajax/libs/heic2any/0.0.4/heic2any.min.js","https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js","https://unpkg.com/heic2any@0.0.4/dist/heic2any.min.js"];
+  var LIBHEIF=["https://cdn.jsdelivr.net/npm/libheif-js@1.18.2/libheif-wasm/libheif-bundle.js","https://cdn.jsdelivr.net/npm/libheif-js@1.17.1/libheif-wasm/libheif-bundle.js","https://cdn.jsdelivr.net/npm/libheif-js@1.18.2/libheif/libheif.js","https://unpkg.com/libheif-js@1.18.2/libheif-wasm/libheif-bundle.js"];
+  var UTIFURL=["https://cdn.jsdelivr.net/npm/utif@3.1.0/UTIF.js","https://unpkg.com/utif@3.1.0/UTIF.js"];
+
+  function ascii(u,a,b){var r="";for(var i=a;i<b&&i<u.length;i++)r+=String.fromCharCode(u[i]);return r}
+  function sniff(u,name){
+    if(u[0]===0xFF&&u[1]===0xD8)return "jpeg";
+    if(u[0]===0x89&&ascii(u,1,4)==="PNG")return "png";
+    var h=ascii(u,0,12);
+    if(/^GIF8/.test(h))return "gif";
+    if(h.slice(0,2)==="BM")return "bmp";
+    if(h.slice(0,4)==="RIFF"&&h.slice(8,12)==="WEBP")return "webp";
+    if(h.slice(4,8)==="ftyp"){
+      var b=ascii(u,8,Math.min(u.length,72));
+      if(/avif|avis/.test(b))return "avif";
+      if(/heic|heix|hevc|hevx|heim|heis|mif1|msf1|heif/.test(b))return "heic";
+      return "other";
+    }
+    if((u[0]===0x49&&u[1]===0x49&&u[2]===42&&u[3]===0)||(u[0]===0x4D&&u[1]===0x4D&&u[2]===0&&u[3]===42))return "tiff";
+    if(u[0]===0&&u[1]===0&&u[2]===1&&u[3]===0)return "ico";
+    if((u[0]===0xFF&&u[1]===0x0A)||(u[0]===0&&u[1]===0&&u[2]===0&&u[3]===0x0C&&ascii(u,4,8)==="JXL "))return "jxl";
+    if(/<svg[\s>]/i.test(ascii(u,0,Math.min(u.length,1024))))return "svg";
+    if(/\.(heic|heif)$/i.test(name||""))return "heic";
+    if(/\.tiff?$/i.test(name||""))return "tiff";
+    return "other";
+  }
+
+  function readFR(f){return new Promise(function(ok,ko){var r=new FileReader();r.onload=function(){ok(r.result)};r.onerror=function(){ko(new Error("Lecture impossible (photo pas téléchargée sur l’appareil ?)"))};r.readAsArrayBuffer(f)})}
+  function readBuf(f){return f.arrayBuffer?f.arrayBuffer().catch(function(){return readFR(f)}):readFR(f)}
+
+  var scriptCache={};
+  function loadScript(urls,ready){
+    if(ready())return Promise.resolve();
+    var key=urls[0];
+    if(scriptCache[key])return scriptCache[key];
+    scriptCache[key]=urls.reduce(function(p,u){return p.catch(function(){
+      return new Promise(function(ok,ko){
+        var s=document.createElement("script"),t=setTimeout(function(){s.remove();ko(new Error("t"))},20000);
+        s.src=u;
+        s.onload=function(){clearTimeout(t);ready()?ok():ko(new Error("n"))};
+        s.onerror=function(){clearTimeout(t);s.remove();ko(new Error("n"))};
+        document.head.appendChild(s);
+      });
+    })},Promise.reject()).catch(function(){scriptCache[key]=null;throw new Error("module en ligne indisponible, vérifiez la connexion")});
+    return scriptCache[key];
+  }
+  function waitFor(fn,ms){
+    return new Promise(function(ok,ko){
+      var t0=Date.now();(function tick(){var v=fn();if(v)return ok(v);if(Date.now()-t0>ms)return ko(new Error("délai dépassé"));setTimeout(tick,50)})();
+    });
+  }
+  function first(fns){
+    return fns.reduce(function(p,fn){return p.catch(function(){return fn()})},Promise.reject(new Error("aucune méthode")));
+  }
+
+  function viaImg(blob){
+    return new Promise(function(ok,ko){
+      var u=URL.createObjectURL(blob),im=new Image();
+      im.onload=function(){URL.revokeObjectURL(u);im.naturalWidth===0&&blob.type!=="image/svg+xml"?ko(new Error("x")):ok(im)};
+      im.onerror=function(){URL.revokeObjectURL(u);ko(new Error("x"))};
+      im.src=u;
+    });
+  }
+  function viaData(blob){
+    return new Promise(function(ok,ko){
+      var fr=new FileReader();
+      fr.onerror=function(){ko(new Error("x"))};
+      fr.onload=function(){var im=new Image();im.onload=function(){ok(im)};im.onerror=function(){ko(new Error("x"))};im.src=fr.result};
+      fr.readAsDataURL(blob);
+    });
+  }
+  function viaBitmap(blob){
+    if(!window.createImageBitmap)return Promise.reject(new Error("x"));
+    return createImageBitmap(blob,{imageOrientation:"from-image"}).catch(function(){return createImageBitmap(blob)});
+  }
+  function viaHeic2any(blob){
+    return loadScript(HEIC2ANY,function(){return !!window.heic2any})
+      .then(function(){return window.heic2any({blob:blob,toType:"image/jpeg",quality:0.95})})
+      .then(function(r){return viaImg(Array.isArray(r)?r[0]:r)});
+  }
+  var heifLib=null;
+  function viaLibheif(buf){
+    return loadScript(LIBHEIF,function(){return !!window.libheif}).then(function(){
+      if(!heifLib){heifLib=window.libheif;if(typeof heifLib==="function")heifLib=heifLib()}
+      return waitFor(function(){return heifLib&&heifLib.HeifDecoder},15000);
+    }).then(function(){
+      var imgs=new heifLib.HeifDecoder().decode(new Uint8Array(buf));
+      if(!imgs||!imgs.length)throw new Error("x");
+      var im=imgs[0],w=im.get_width(),h=im.get_height();
+      var c=document.createElement("canvas");c.width=w;c.height=h;
+      var x=c.getContext("2d"),id=x.createImageData(w,h);
+      return new Promise(function(ok,ko){im.display(id,function(r){if(!r)return ko(new Error("x"));x.putImageData(r,0,0);ok(c)})});
+    });
+  }
+  function viaUTIF(buf){
+    return loadScript(UTIFURL,function(){return !!window.UTIF}).then(function(){
+      var U=window.UTIF,ifds=U.decode(buf);
+      if(!ifds.length)throw new Error("x");
+      var best=ifds[0],bs=0;
+      ifds.forEach(function(f){var s=((f.t256&&f.t256[0])||0)*((f.t257&&f.t257[0])||0);if(s>bs){bs=s;best=f}});
+      U.decodeImage(buf,best);
+      var rgba=U.toRGBA8(best),w=best.width,h=best.height;
+      var c=document.createElement("canvas");c.width=w;c.height=h;
+      var x=c.getContext("2d"),id=x.createImageData(w,h);
+      id.data.set(rgba);x.putImageData(id,0,0);return c;
+    });
+  }
+  // fin d'un JPEG qui commence en i (SOI), en suivant les segments
+  function jpegEnd(u,i){
+    var p=i+2,n=u.length;
+    while(p+4<=n){
+      if(u[p]!==0xFF){p++;continue}
+      var m=u[p+1];
+      if(m===0xFF){p++;continue}
+      if(m===0xD9)return p+2;
+      if(m===0x00||m===0x01||(m>=0xD0&&m<=0xD7)){p+=2;continue}
+      p+=2+((u[p+2]<<8)|u[p+3]);
+      if(m===0xDA){
+        while(p+1<n){
+          if(u[p]===0xFF){var k=u[p+1];if(k!==0&&k!==0xFF&&!(k>=0xD0&&k<=0xD7))break}
+          p++;
+        }
+      }
+    }
+    return -1;
+  }
+  // RAW, formats exotiques, fichiers abîmés : on récupère le plus grand JPEG intégré
+  function viaEmbedded(u8){
+    var c=[];
+    for(var i=0;i+3<u8.length&&c.length<40;i++){
+      if(u8[i]===0xFF&&u8[i+1]===0xD8&&u8[i+2]===0xFF){var e=jpegEnd(u8,i);if(e>i+2048)c.push([i,e])}
+    }
+    c.sort(function(a,b){return (b[1]-b[0])-(a[1]-a[0])});
+    return c.slice(0,3).reduce(function(p,r){
+      return p.catch(function(){return viaImg(new Blob([u8.subarray(r[0],r[1])],{type:"image/jpeg"}))});
+    },Promise.reject(new Error("aucun aperçu intégré")));
+  }
+
+  function load(file){
+    var fail=function(kind,e){
+      var m=e&&e.message||"";
+      var d=/en ligne|Lecture impossible/.test(m)?m:
+        kind==="jxl"?"JPEG XL non pris en charge sur cet appareil":
+        kind==="heic"?"HEIC impossible à décoder":
+        "format non pris en charge ou fichier abîmé";
+      return new Error("Image illisible : "+file.name+" ("+d+")");
+    };
+    return readBuf(file).then(function(buf){
+      var u8=new Uint8Array(buf);
+      if(!u8.length)throw fail("other",new Error("Lecture impossible (photo pas téléchargée sur l’appareil ?)"));
+      var kind=sniff(u8,file.name);
+      var blob=new Blob([buf],{type:MIMES[kind]||file.type||""});
+      var nat=function(){return viaImg(blob).catch(function(){return viaBitmap(blob)}).catch(function(){return viaData(blob)})};
+      var emb=function(){return viaEmbedded(u8)};
+      var steps;
+      if(kind==="heic")steps=[nat,function(){return viaHeic2any(blob)},function(){return viaLibheif(buf)}];
+      else if(kind==="tiff")steps=RAWEXT.test(file.name)?[emb,nat,function(){return viaUTIF(buf)}]:[nat,function(){return viaUTIF(buf)},emb];
+      else steps=[nat,emb];
+      return first(steps).catch(function(e){throw fail(kind,e)});
+    },function(e){throw fail("other",e)});
+  }
+  function dims(im){
+    var w=im.naturalWidth||im.width,h=im.naturalHeight||im.height;
+    if(!w||!h){w=1024;h=1024}
+    return [w,h];
+  }
+  function draw(im,maxW,flat){
+    var d=dims(im),w=d[0],h=d[1];
+    if(maxW&&w>maxW){h=Math.round(h*maxW/w);w=maxW}
+    if(w*h>MAXPX){var k=Math.sqrt(MAXPX/(w*h));w=Math.max(1,Math.floor(w*k));h=Math.max(1,Math.floor(h*k))}
+    var c=document.createElement("canvas");c.width=w;c.height=h;
+    var x=c.getContext("2d");
+    if(flat){x.fillStyle="#ffffff";x.fillRect(0,0,w,h)}
+    x.drawImage(im,0,0,w,h);
+    if(im.close)im.close();
+    return c;
+  }
+  function blobOf(c,type,q){
+    return new Promise(function(ok,ko){c.toBlob(function(b){b?ok(b):ko(new Error("Ce format n’est pas pris en charge ici."))},type,q)});
+  }
+  function base(n){return n.replace(/\.[^.]+$/,"")||"image"}
+
+  $("go").addEventListener("click",async function(){
+    if(!files.length)return;
+    var btn=$("go");btn.disabled=true;results=[];$("res").hidden=true;
+    var q=$("q").value/100,maxW=parseInt($("w").value,10);
+    var failed=[],notes=[];
+    try{
+      if(fmt==="pdf"){
+        if(!window.jspdf)throw new Error("Le module PDF n’a pas chargé. Vérifiez la connexion.");
+        var pdf=null;
+        for(var i=0;i<files.length;i++){
+          say("Page "+(i+1)+" sur "+files.length+"…");
+          try{
+            var im=await load(files[i]),c=draw(im,maxW,true);
+            var data=c.toDataURL("image/jpeg",q),o=c.width>c.height?"l":"p";
+            if(!pdf)pdf=new window.jspdf.jsPDF({unit:"px",format:[c.width,c.height],orientation:o,compress:true});
+            else pdf.addPage([c.width,c.height],o);
+            pdf.addImage(data,"JPEG",0,0,c.width,c.height,undefined,"FAST");
+            c.width=0;c.height=0;
+          }catch(e){failed.push(e.message||("Image illisible : "+files[i].name))}
+        }
+        if(pdf){
+          var b=pdf.output("blob");
+          results.push({name:(files.length===1?base(files[0].name):"images")+".pdf",blob:b,from:files.reduce(function(a,f){return a+f.size},0)});
+        }
+      }else{
+        for(var j=0;j<files.length;j++){
+          say("Image "+(j+1)+" sur "+files.length+"…");
+          try{
+            var img=await load(files[j]),cv=draw(img,maxW,fmt==="jpg");
+            var bl=await blobOf(cv,MIME[fmt],q);
+            cv.width=0;cv.height=0;
+            var ext=EXT[bl.type]||fmt;
+            if(ext!==fmt&&notes.indexOf(fmt)<0)notes.push(fmt);
+            results.push({name:base(files[j].name)+"."+ext,blob:bl,from:files[j].size});
+          }catch(e){failed.push(e.message||("Image illisible : "+files[j].name))}
+        }
+      }
+      if(!results.length){say(failed.join("\n")||"Aucune image n’a pu être convertie.","bad")}
+      else{
+        var t=failed.length?"Terminé, mais "+failed.length+" image(s) non convertie(s) :\n"+failed.join("\n"):"Terminé.";
+        if(notes.length)t+="\n"+notes[0].toUpperCase()+" n’est pas pris en charge sur cet appareil : le fichier a été enregistré dans un autre format.";
+        say(t,failed.length?"bad":"good");renderResults();
+      }
+    }catch(err){say(err.message||"Une erreur est survenue.","bad")}
+    btn.disabled=!files.length;
+  });
+
+  $("pdfpick").addEventListener("change",async function(e){
+    var f=e.target.files[0];e.target.value="";if(!f)return;
+    results=[];$("res").hidden=true;
+    try{
+      if(!window.pdfjsLib||!window.jspdf)throw new Error("Les modules PDF n’ont pas chargé. Vérifiez la connexion.");
+      window.pdfjsLib.GlobalWorkerOptions.workerSrc="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+      var q=$("q").value/100,maxW=parseInt($("w").value,10);
+      say("Ouverture du PDF…");
+      var doc=await window.pdfjsLib.getDocument({data:await f.arrayBuffer()}).promise;
+      var out=null;
+      for(var i=1;i<=doc.numPages;i++){
+        say("Page "+i+" sur "+doc.numPages+"…");
+        var pg=await doc.getPage(i),v1=pg.getViewport({scale:1});
+        var sc=Math.min(3,maxW?maxW/v1.width:2),vp=pg.getViewport({scale:sc});
+        var c=document.createElement("canvas");c.width=Math.round(vp.width);c.height=Math.round(vp.height);
+        var x=c.getContext("2d");x.fillStyle="#ffffff";x.fillRect(0,0,c.width,c.height);
+        await pg.render({canvasContext:x,viewport:vp}).promise;
+        var data=c.toDataURL("image/jpeg",q),o=c.width>c.height?"l":"p";
+        if(!out)out=new window.jspdf.jsPDF({unit:"px",format:[c.width,c.height],orientation:o,compress:true});
+        else out.addPage([c.width,c.height],o);
+        out.addImage(data,"JPEG",0,0,c.width,c.height,undefined,"FAST");
+        c.width=0;c.height=0;
+      }
+      var b=out.output("blob");
+      results.push({name:base(f.name)+"-leger.pdf",blob:b,from:f.size});
+      renderResults();
+      if(b.size>=f.size)say("Ce PDF est déjà léger. Baissez la qualité ou la largeur pour gagner plus.");
+      else say("Terminé.","good");
+      $("res").scrollIntoView({behavior:"smooth",block:"center"});
+    }catch(err){say(err.message||"Impossible de lire ce PDF.","bad")}
+  });
+
+  function renderResults(){
+    var ul=$("rlist");ul.textContent="";$("res").hidden=!results.length;
+    results.forEach(function(r){
+      var li=document.createElement("li"),d=document.createElement("div"),n=document.createElement("div"),s=document.createElement("div"),b=document.createElement("button");
+      d.style.minWidth="0";n.className="nm";n.textContent=r.name;
+      var pct=Math.round((1-r.blob.size/r.from)*100);
+      s.className="sz";s.textContent=size(r.from)+" → "+size(r.blob.size)+(pct>0?" (−"+pct+" %)":"");
+      if(pct>0)s.className+=" good";
+      b.className="save";b.type="button";b.textContent="Télécharger";
+      b.onclick=function(){save(r)};
+      d.appendChild(n);d.appendChild(s);li.appendChild(d);li.appendChild(b);ul.appendChild(li);
+    });
+  }
+
+  function save(r){
+    var C=window.Capacitor;
+    if(C&&C.isNativePlatform&&C.isNativePlatform()&&C.Plugins&&C.Plugins.Filesystem&&C.Plugins.Share){
+      var fr=new FileReader();
+      fr.onload=function(){
+        var b64=String(fr.result).split(",")[1];
+        C.Plugins.Filesystem.writeFile({path:r.name,data:b64,directory:"CACHE"})
+          .then(function(w){return C.Plugins.Share.share({title:r.name,url:w.uri,dialogTitle:"Enregistrer ou partager"})})
+          .then(function(){say("Terminé.","good")})
+          .catch(function(e){if(!/cancel/i.test(String(e&&e.message||e)))say("Enregistrement impossible.","bad")});
+      };
+      fr.readAsDataURL(r.blob);return;
+    }
+    var u=URL.createObjectURL(r.blob),a=document.createElement("a");
+    a.href=u;a.download=r.name;document.body.appendChild(a);a.click();a.remove();
+    setTimeout(function(){URL.revokeObjectURL(u)},4000);
+    say("Téléchargement lancé.","good");
+  }
+})();
+</script>
+<script>if("serviceWorker" in navigator){window.addEventListener("load",function(){navigator.serviceWorker.register("sw.js").catch(function(){})})}</script>
+<script>
+(function(){
+  var el=document.getElementById("splash");if(!el)return;
+  var t0=Date.now(),done=false;
+  function hide(){
+    if(done)return;done=true;
+    var wait=Math.max(0,1100-(Date.now()-t0));
+    setTimeout(function(){el.classList.add("off");setTimeout(function(){el.remove()},600)},wait);
+  }
+  if(document.readyState==="complete")hide();else window.addEventListener("load",hide);
+  setTimeout(hide,5000);
+})();
+</script>
+</body>
+</html>
