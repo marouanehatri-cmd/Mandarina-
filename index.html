@@ -313,7 +313,9 @@ li:first-child{border-top:0}
         kind==="jxl"?"JPEG XL non pris en charge sur cet appareil":
         kind==="heic"?"HEIC impossible à décoder":
         "format non pris en charge ou fichier abîmé";
-      return new Error("Image illisible : "+file.name+" ("+d+")");
+      var ua=(navigator.userAgent.match(/(Chrome|Version|CriOS|Firefox)\/[\d.]+/)||[""])[0];
+      var info=" ["+kind+", "+(file.type||"?")+", "+Math.round(file.size/1024)+" Ko, "+(navigator.onLine?"en ligne":"hors ligne")+(ua?", "+ua:"")+", v2]";
+      return new Error("Image illisible : "+file.name+" ("+d+")"+info);
     };
     return readBuf(file).then(function(buf){
       var u8=new Uint8Array(buf);
