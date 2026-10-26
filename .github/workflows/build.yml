@@ -1,4 +1,4 @@
-name: Build APK
+name: Build Mandarina APK
 
 on:
   push:
@@ -23,80 +23,60 @@ jobs:
           distribution: temurin
           java-version: 17
 
-      - name: Create Capacitor Android project
+      - name: Prepare web files
         run: |
-          npm init -y
-          npm i @capacitor/core@6 @capacitor/cli@6 @capacitor/android@6 @capacitor/filesystem@6 @capacitor/share@6
-          npm i jspdf@2.5.1 pdfjs-dist@3.11.174 heic2any@0.0.4
+          mkdir -p www
+          rsync -a \
+            --exclude '.git' --exclude '.github' --exclude 'node_modules' \
+            --exclude 'android' --exclude 'www' --exclude 'assets' \
+            --exclude 'package*.json' --exclude 'capacitor.config.*' \
+            --exclude '*.yml' --exclude '*.md' \
+            ./ www/
+          ls -la www
 
-          mkdir -p www/libs
-          cp index.html www/index.html
-          cp node_modules/jspdf/dist/jspdf.umd.min.js www/libs/
-          cp node_modules/pdfjs-dist/build/pdf.min.js www/libs/
-          cp node_modules/pdfjs-dist/build/pdf.worker.min.js www/libs/
-          cp node_modules/heic2any/dist/heic2any.min.js www/libs/
-
-          sed -i 's|https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js|libs/jspdf.umd.min.js|g' www/index.html
-          sed -i 's|https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js|libs/pdf.min.js|g' www/index.html
-          sed -i 's|https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js|libs/pdf.worker.min.js|g' www/index.html
-          sed -i 's|https://cdnjs.cloudflare.com/ajax/libs/heic2any/0.0.4/heic2any.min.js|libs/heic2any.min.js|g' www/index.html
-
-          if grep -q "https://" www/index.html; then
-            echo "Remaining external URLs:"; grep -n "https://" www/index.html; exit 1
-          fi
-          ls -la www/libs
-
-          npx cap init Mandarina com.marouane.mandarine --web-dir www
+      - name: Create Capacitor project
+        run: |
+          [ -f package.json ] || npm init -y
+          npm install --no-audit --no-fund \
+            @capacitor/core@6 @capacitor/cli@6 @capacitor/android@6 \
+            @capacitor/filesystem@6 @capacitor/share@6
+          cat > capacitor.config.json <<'JSON'
+          {
+            "appId": "com.mandarina.app",
+            "appName": "Mandarina",
+            "webDir": "www",
+            "backgroundColor": "#000000",
+            "server": { "androidScheme": "https" }
+          }
+          JSON
           npx cap add android
 
-          pip install pillow
-          python3 - <<'PY'
-          from PIL import Image
-          import os, shutil
-          src = Image.open("icon.png").convert("RGBA")
-          res = "android/app/src/main/res"
-          sizes = {"mdpi": 48, "hdpi": 72, "xhdpi": 96, "xxhdpi": 144, "xxxhdpi": 192}
-          for d, n in sizes.items():
-              folder = f"{res}/mipmap-{d}"
-              os.makedirs(folder, exist_ok=True)
-              im = src.resize((n, n), Image.LANCZOS)
-              im.save(f"{folder}/ic_launcher.png")
-              im.save(f"{folder}/ic_launcher_round.png")
-              im.save(f"{folder}/ic_launcher_foreground.png")
-          shutil.rmtree(f"{res}/mipmap-anydpi-v26", ignore_errors=True)
-
-          # ---- Splash screen (loading page) ----
-          import re, json
-          canvas = Image.new("RGBA", (960, 960), (0, 0, 0, 0))
-          orange = src.resize((540, 540), Image.LANCZOS)
-          canvas.paste(orange, (210, 210), orange)
-          os.makedirs(f"{res}/drawable-nodpi", exist_ok=True)
-          canvas.save(f"{res}/drawable-nodpi/splash_icon.png")
-
-          styles_path = f"{res}/values/styles.xml"
-          styles = open(styles_path, encoding="utf-8").read()
-          launch = """<style name="AppTheme.NoActionBarLaunch" parent="Theme.SplashScreen">
-              <item name="windowSplashScreenBackground">#FFF8EF</item>
-              <item name="windowSplashScreenAnimatedIcon">@drawable/splash_icon</item>
-              <item name="postSplashScreenTheme">@style/AppTheme.NoActionBar</item>
-          </style>"""
-          styles, n = re.subn(r'<style name="AppTheme.NoActionBarLaunch".*?</style>', launch, styles, flags=re.S)
-          if n != 1:
-              raise SystemExit("NoActionBarLaunch style not found")
-          open(styles_path, "w", encoding="utf-8").write(styles)
-
-          cfg = json.load(open("capacitor.config.json"))
-          cfg["backgroundColor"] = "#fff8ef"
-          json.dump(cfg, open("capacitor.config.json", "w"), indent=2)
-          PY
-
-          npx cap sync android
-
-      - name: Build APK
+      - name: Black launcher icon and splash (optional)
+        if: hashFiles('icon.svg') != ''
+        continue-on-error: true
         run: |
-          cd android
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq librsvg2-bin imagemagick
+          mkdir -p assets
+          rsvg-convert -w 1024 -h 1024 icon.svg -o assets/icon-only.png
+          rsvg-convert -w 640 -h 640 icon.svg -o /tmp/fg.png
+          convert -size 1024x1024 xc:none /tmp/fg.png -gravity center -composite assets/icon-foreground.png
+          convert -size 1024x1024 xc:'#000000' assets/icon-background.png
+          rsvg-convert -w 760 -h 760 icon.svg -o /tmp/sp.png
+          convert -size 2732x2732 xc:'#000000' /tmp/sp.png -gravity center -composite assets/splash.png
+          cp assets/splash.png assets/splash-dark.png
+          npx --yes @capacitor/assets@3 generate --android \
+            --iconBackgroundColor '#000000' --iconBackgroundColorDark '#000000' \
+            --splashBackgroundColor '#000000' --splashBackgroundColorDark '#000000'
+
+      - name: Sync web files into Android project
+        run: npx cap sync android
+
+      - name: Build debug APK
+        working-directory: android
+        run: |
           chmod +x gradlew
-          ./gradlew assembleDebug
+          ./gradlew assembleDebug --no-daemon
 
       - name: Rename APK
         run: cp android/app/build/outputs/apk/debug/app-debug.apk Mandarina.apk
@@ -106,9 +86,11 @@ jobs:
           name: Mandarina-apk
           path: Mandarina.apk
 
-      - name: Publish release
+      # Optional: direct download link for your friends (Releases page).
+      # Delete this step if you only want the zipped artifact.
+      - name: Publish to "latest" release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v${{ github.run_number }}
-          name: Mandarina v${{ github.run_number }}
+          tag_name: latest
+          name: Mandarina (dernière version)
           files: Mandarina.apk
